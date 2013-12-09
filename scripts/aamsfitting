@@ -1,0 +1,102 @@
+from pybug.io import auto_import
+import matplotlib.pylab as plt
+import numpy as np
+
+images = auto_import('/vol/atlas/databases/lfpw/t/' + '*.png',
+                     max_images=1)
+shapes = [img.landmarks['PTS'].lms for img in images]
+
+import pickle
+aam = pickle.load(open('/vol/atlas/aams/lfpw_pwa_multi', "rb"))
+reference_frame = aam["ref_frame_list"][-1]
+appearance_model = aam["appearance_model_list"][-1]
+shape_model = aam["shape_model_list"][-1]
+
+appearance_model.trim_components(n_components=50)
+shape_model.trim_components(n_components=10)
+
+ind = np.random.randint(len(images))
+test_image = images[ind].as_greyscale()
+test_shape = shapes[ind]
+
+from pybug.image import MaskedNDImage
+test_image2 = MaskedNDImage(test_image.pixels, mask=test_image.mask)
+test_image2.landmarks = test_image.landmarks
+test_image = test_image2
+
+from pybug.transform.piecewiseaffine import PiecewiseAffineTransform
+source = reference_frame.landmarks['ibug_68_trimesh'].lms
+template_pwa = PiecewiseAffineTransform(source, test_shape)
+template = test_image.warp_to(reference_frame.mask, template_pwa)
+
+test_image.landmarks["ground_truth"] = test_shape
+test_image.landmarks['ground_truth'].view_new()
+template.landmarks['reference'] = source
+template.landmarks['reference'].view_new()
+
+from pybug.transform.affine import SimilarityTransform
+import numpy as np
+
+
+model_transform = SimilarityTransform.from_vector(0.0 * np.random.randn(4))
+perturbed_mean = model_transform.apply(shape_model.mean)
+initial_global_transform = SimilarityTransform.align(perturbed_mean,
+                                                     test_shape)
+optimal_global_transform = SimilarityTransform.align(shape_model.mean,
+                                                     test_shape)
+
+from pybug.transform.modeldriven import OrthoMDTransform
+from pybug.transform.affine import SimilarityTransform
+
+model_driven_transform = OrthoMDTransform(shape_model,
+                                          PiecewiseAffineTransform,
+                                          initial_global_transform,
+                                          source=source)
+
+test_image.landmarks['initial'] = model_driven_transform.target
+test_image.landmarks["initial"].view_new()
+initial_warped_image = test_image.warp_to(template.mask, model_driven_transform)
+initial_warped_image.landmarks['reference'] = source
+initial_warped_image.landmarks['reference'].view_new()
+
+from pybug.lucaskanade.residual import (LSIntensity, ECC, GaborFourier,
+                                        GradientImages, GradientCorrelation)
+from pybug.lucaskanade.appearance import (AlternatingForwardAdditive, AlternatingForwardCompositional,
+                                           AlternatingInverseCompositional)
+from copy import deepcopy
+
+
+residual = LSIntensity()
+#fa = AlternatingForwardAdditive(appearance_model, residual, deepcopy(
+# model_driven_transform))
+fc = AlternatingForwardCompositional(appearance_model, residual,
+                                     deepcopy(model_driven_transform))
+ic = AlternatingInverseCompositional(appearance_model, residual,
+                                     deepcopy(model_driven_transform))
+
+
+#optimal_transform_1 = fa.align(test_image, model_driven_transform
+# .as_vector(), max_iters=50)
+optimal_transform_2 = fc.align(test_image, model_driven_transform.as_vector(),
+                               max_iters=50)
+optimal_transform_3 = ic.align(test_image, model_driven_transform.as_vector(),
+                               max_iters=50)
+
+#fitted_appearance_1 = test_image.warp_to(template.mask, optimal_transform_1)
+fitted_appearance_2 = test_image.warp_to(template.mask, optimal_transform_2)
+fitted_appearance_3 = test_image.warp_to(template.mask, optimal_transform_3)
+
+#fitted_appearance_1.landmarks['reference'] = source
+#fitted_appearance_1.landmarks['reference'].view_new()
+fitted_appearance_2.landmarks['reference'] = source
+fitted_appearance_2.landmarks['reference'].view_new()
+fitted_appearance_3.landmarks['reference'] = source
+fitted_appearance_3.landmarks['reference'].view_new()
+
+#test_image.landmarks['fa'] = optimal_transform_1.target
+test_image.landmarks['fc'] = optimal_transform_2.target
+test_image.landmarks['ic'] = optimal_transform_3.target
+
+test_image.landmarks['fa'].view_new()
+test_image.landmarks['fc'].view_new()
+test_image.landmarks['ic'].view_new()
