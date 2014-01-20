@@ -22,7 +22,7 @@ obj = pickle.load(open('/Users/joan/PhD/Models/aam_lfpw', "rb"))
 aam = obj["aam"]
 
 
-from pybug.activeappearancemodel.builder import compute_mean_pointcloud, \
+from pybug.activeappearancemodel.builder import mean_pointcloud, \
     rescale_to_reference_landmarks
 
 group = 'PTS'
@@ -43,7 +43,7 @@ if reference_landmarks is None:
     # extract original shapes
     shapes = [i.landmarks[group][label].lms for i in images]
     # define reference shape
-    reference_landmarks = compute_mean_pointcloud(shapes)
+    reference_landmarks = mean_pointcloud(shapes)
 
 # TODO:
 print '- Rescaling images to reference shape'

@@ -3,7 +3,8 @@ from pybug.io import auto_import
 from pybug.image import RGBImage
 import numpy as np
 
-images = auto_import('/Users/joan/PhD/DataBases/lfpw/trainset/*.png', max_images=811)
+images = auto_import('/Users/joan/PhD/DataBases/lfpw/trainset/*.png',
+                     max_images=811)
 images = [i.as_greyscale() if type(i) is RGBImage else i for i in images]
 
 from pybug.activeappearancemodel.builder import aam_builder
@@ -26,19 +27,20 @@ for i in images:
     i.crop_to_landmarks_proportion(0.2)
 
 
-from pybug.lucaskanade.appearance.alternating import RobustAlternatingInverseCompositional
+from pybug.lucaskanade.appearance.projectout import \
+    ProjectOutInverseCompositional
 
 from pybug.lucaskanade.residual import Huber, GemanMcClure, L1L2
 
 aam.initialize_lk(n_shape=[3, 6, 12], n_appearance=[250, 250, 250],
-                  lk_algorithm=RobustAlternatingInverseCompositional)
+                  lk_algorithm=ProjectOutInverseCompositional)
 
 fitted_transforms = aam.lk_fit_landmarked_database(images, runs=1, noise_std=0.0, verbose=True, view=True, max_iters=20)
 
 
 # #### 6. Evaluate Performance
 
-from pybug.activeappearancemodel.accuracy import plot_ced
+from pybug.activeappearancemodel.functions import plot_ced
 from pybug.transform.affine import UniformScale
 
 
